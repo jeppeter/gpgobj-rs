@@ -82,6 +82,7 @@ lazy_static! {
 }
 
 
+#[allow(dead_code)]
 pub (crate)  fn gpgobj_debug_out(level :i32, outs :&str) {
 	if GPGOBJ_LOG_LEVEL.level >= level {
 		let c = format!("{}\n",outs);
@@ -97,13 +98,13 @@ pub (crate)  fn gpgobj_debug_out(level :i32, outs :&str) {
 	return;
 }
 
-
+#[allow(dead_code)]
 pub (crate) fn gpgobj_log_get_timestamp() -> String {
 	let now = Local::now();
 	return format!("{}/{}/{} {}:{}:{}",now.year(),now.month(),now.day(),now.hour(),now.minute(),now.second());
 }
 
-
+#[allow(unused_macros)]
 macro_rules! gpgobj_log_error {
 	($($arg:tt)+) => {
 		let mut c :String= format!("<ERROR>{}[{}:{}]  ",gpgobj_log_get_timestamp(),file!(),line!());
@@ -131,6 +132,7 @@ macro_rules! gpgobj_log_info {
 	}
 }
 
+#[allow(unused_macros)]
 macro_rules! gpgobj_log_trace {
 	($($arg:tt)+) => {
 		let mut _c :String= format!("<TRACE>{}[{}:{}]  ",gpgobj_log_get_timestamp(),file!(),line!());
