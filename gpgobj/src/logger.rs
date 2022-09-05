@@ -104,7 +104,7 @@ pub (crate) fn gpgobj_log_get_timestamp() -> String {
 	return format!("{}/{}/{} {}:{}:{}",now.year(),now.month(),now.day(),now.hour(),now.minute(),now.second());
 }
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! gpgobj_log_error {
 	($($arg:tt)+) => {
 		let mut c :String= format!("<ERROR>{}[{}:{}]  ",gpgobj_log_get_timestamp(),file!(),line!());
@@ -113,7 +113,7 @@ macro_rules! gpgobj_log_error {
 	}
 }
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! gpgobj_log_warn {
 	($($arg:tt)+) => {
 		let mut c :String= format!("<WARN>{}[{}:{}]  ",gpgobj_log_get_timestamp(),file!(),line!());
@@ -123,7 +123,7 @@ macro_rules! gpgobj_log_warn {
 }
 
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! gpgobj_log_info {
 	($($arg:tt)+) => {
 		let mut c :String= format!("<INFO>{}[{}:{}]  ",gpgobj_log_get_timestamp(),file!(),line!());
@@ -132,7 +132,7 @@ macro_rules! gpgobj_log_info {
 	}
 }
 
-#[allow(unused_macros)]
+#[macro_export]
 macro_rules! gpgobj_log_trace {
 	($($arg:tt)+) => {
 		let mut _c :String= format!("<TRACE>{}[{}:{}]  ",gpgobj_log_get_timestamp(),file!(),line!());
