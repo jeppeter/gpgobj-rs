@@ -27,7 +27,7 @@ impl<T: GpgOp + Clone> GpgOp for GpgVec<T> {
 		self.val = Vec::new();
 
 		while retv < code.len() {
-			let ores = v.decode_gpg(code);
+			let ores = v.decode_gpg(&code[retv..]);
 			if ores.is_err() {
 				let e = ores.err().unwrap();
 				if code.len() > 20 {
@@ -37,10 +37,9 @@ impl<T: GpgOp + Clone> GpgOp for GpgVec<T> {
 				}
 				/*we make end of the line*/
 				break;
-			} else {
-				self.val.push(v.clone());
-				retv += ores.unwrap();
-			}
+			} 
+			self.val.push(v.clone());
+			retv += ores.unwrap();			
 		}
 		Ok(retv)
 	}
