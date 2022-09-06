@@ -87,8 +87,8 @@ struct SequenceSyn {
 	parsenames :Vec<String>,
 	kmap :HashMap<String,String>,
 	matchidname :String,
+	extflagname :String,
 	matchid :Vec<String>,
-	exthdr : bool,
 }
 
 impl SequenceSyn {
@@ -101,7 +101,7 @@ impl SequenceSyn {
 			kmap : HashMap::new(),
 			matchidname : "".to_string(),
 			matchid :Vec::new(),
-			exthdr : false,
+			extflagname  : "".to_string(),
 		}
 	}
 
@@ -117,16 +117,12 @@ impl SequenceSyn {
 			} else {
 				self.debugenable = false;
 			}
-		} else if k == "exthdr" {
-			if v == "true" {
-				self.exthdr = true;
-			} else {
-				self.exthdr = false;
-			}
 		} else if k == "matchid" {
 			self.matchid.push(format!("{}",v));
 		} else if k == "matchidname" {
 			self.matchidname = format!("{}",v);
+		} else if k == "extflagname" {
+			self.extflagname = format!("{}",v);
 		} else {
 			gpg_gen_new_error!{SequenceSynError,"can not accept k[{}] v [{}]",k,v}
 		}
@@ -138,8 +134,10 @@ impl SequenceSyn {
 			self.errname = format!("{}",n);
 		} else {
 			if self.matchidname.len() == 0 || self.matchidname != k {
-				self.parsenames.push(format!("{}",k));
-				self.kmap.insert(format!("{}",k),format!("{}",n));
+				if self.extflagname.len() == 0 || self.extflagname != k {
+					self.parsenames.push(format!("{}",k));
+					self.kmap.insert(format!("{}",k),format!("{}",n));					
+				}
 			}
 		}
 		return;
@@ -151,6 +149,9 @@ impl SequenceSyn {
 		rets.push_str(&format_tab_line(tab + 1, &format!("{} {{",self.sname)));
 		if self.matchidname.len() > 0 {
 			rets.push_str(&format_tab_line(tab + 2, &format!("{} : 0,", self.matchidname)));
+		}
+		if self.extflagname.len() > 0 {
+			rets.push_str(&format_tab_line(tab + 2, &format!("{} : false,", self.extflagname)));
 		}
 		for k in self.parsenames.iter() {
 			let v = self.kmap.get(k).unwrap();
@@ -174,9 +175,9 @@ impl SequenceSyn {
 			rets.push_str(&format_tab_line(tab + 1, "let mut _lasti :usize;"));
 		}
 		if self.matchidname.len() > 0 || self.matchid.len() > 0 { 
-			rets.push_str(&format_tab_line(tab + 1, "let  (_flag,_hdrlen,_tlen) = decode_gpgobj_header(code)?;"));
+			rets.push_str(&format_tab_line(tab + 1, "let  (_flag,_extflag,_hdrlen,_tlen) = decode_gpgobj_header(code)?;"));
 			if self.debugenable {
-				rets.push_str(&format_tab_line(tab + 1,&format!("_outs = foramt!(\"header 0x{{:x}} hdrlen 0x{{:x}} tlen 0x{{:x}}\",_flag,_hdrlen,_tlen);")));
+				rets.push_str(&format_tab_line(tab + 1,&format!("_outs = foramt!(\"header 0x{{:x}} extflag {{}} hdrlen 0x{{:x}} tlen 0x{{:x}}\",_flag,_extflag,_hdrlen,_tlen);")));
 				rets.push_str(&format_tab_line(tab + 1,&format!("let _ = _outf.write(_outs.as_bytes())?;")));
 			}
 			rets.push_str(&format_tab_line(tab + 1, "if code.len() < (_hdrlen + _tlen) {"));
@@ -212,6 +213,9 @@ impl SequenceSyn {
 
 			if self.matchidname.len() > 0 {
 				rets.push_str(&format_tab_line(tab + 1,&format!("self.{} = _flag;",self.matchidname)));
+			}
+			if self.extflagname.len() > 0 {
+				rets.push_str(&format_tab_line(tab + 1, &format!("self.{} = _extflag;",self.extflagname)));
 			}
 			rets.push_str(&format_tab_line(tab + 1,"retv += _hdrlen;"));
 			rets.push_str(&format_tab_line(tab + 1,"_endsize = _hdrlen + _tlen;"));
@@ -321,7 +325,12 @@ impl SequenceSyn {
 		}
 
 		if self.matchidname.len() > 0 {
-			rets.push_str(&format_tab_line(tab + 1,&format!("encv = encode_gpgobj_header(self.{},true,_v8.len())?;",self.matchidname)));
+			if self.extflagname.len() == 0 {
+				rets.push_str(&format_tab_line(tab + 1,&format!("encv = encode_gpgobj_header(self.{},false,_v8.len())?;",self.matchidname)));	
+			} else {
+				rets.push_str(&format_tab_line(tab + 1,&format!("encv = encode_gpgobj_header(self.{},self.{},_v8.len())?;",self.matchidname,self.extflagname)));	
+			}
+			
 			rets.push_str(&format_tab_line(tab + 1,&format!("for _i in 0.._v8.len() {{")));
 			rets.push_str(&format_tab_line(tab + 2,&format!("encv.push(_v8[_i]);")));
 			rets.push_str(&format_tab_line(tab + 1,&format!("}}")));
@@ -346,11 +355,18 @@ impl SequenceSyn {
 		}
 		rets.push_str(&format_tab_line(tab + 1, &format!("s = gpgobj_format_line(tab,&format!(\"{{}} {}\", name));", self.sname)));
 		rets.push_str(&format_tab_line(tab + 1, "iowriter.write(s.as_bytes())?;"));
+
 		
 		rets.push_str(&format_tab_line(tab + 1, ""));
 		if self.matchidname.len() > 0 {
 			rets.push_str(&format_tab_line(tab + 1, &format!("s = gpgobj_format_line(tab + 1 ,&format!(\"{} code [0x{{:x}}]\", self.{}));", self.matchidname,self.matchidname)));
 			rets.push_str(&format_tab_line(tab + 1, &format!("let _ = iowriter.write(s.as_bytes())?;")));
+			rets.push_str(&format_tab_line(tab + 1, ""));
+		}
+		if self.extflagname.len() > 0 {
+			rets.push_str(&format_tab_line(tab + 1, &format!("s = gpgobj_format_line(tab + 1 ,&format!(\"{} {{}}\", self.{}));", self.extflagname,self.extflagname)));
+			rets.push_str(&format_tab_line(tab + 1, &format!("let _ = iowriter.write(s.as_bytes())?;")));			
+			rets.push_str(&format_tab_line(tab + 1, ""));
 		}
 		for k in self.parsenames.iter() {
 			rets.push_str(&format_tab_line(tab + 1, &format!("s = format!(\"{}\");", k)));

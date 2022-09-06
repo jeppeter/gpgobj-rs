@@ -77,8 +77,9 @@ impl<T: GpgOp + Clone> GpgOp for GpgVec<T> {
 	}
 }
 
-#[gpgobj_sequence(matchid=PKT_PUBLIC_KEY,matchidname=matchid)]
+#[gpgobj_sequence(matchid=PKT_PUBLIC_KEY,extflagname=extflag,matchidname=matchid)]
 pub struct GpgPubKey {
+	pub extflag : bool,
 	pub matchid : u8,
 	pub version : GpgVersion,
 	pub timestamp : GpgTime,

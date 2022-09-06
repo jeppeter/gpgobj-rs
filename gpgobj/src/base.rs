@@ -14,10 +14,11 @@ use num_traits::{Zero};
 gpgobj_error_class!{GpgBaseError}
 
 
-pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Error>> {
+pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,bool,usize,usize),Box<dyn Error>> {
 	let flag :u8;
 	let hdrlen :usize;
 	let mut tlen :usize;
+	let isext :bool;
 
 	if code.len() < 1 {
 		gpgobj_new_error!{GpgBaseError,"len [{}] < 1", code.len()}
@@ -25,6 +26,7 @@ pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Erro
 
 	if (code[0] & GPG_HEADER_EXTENSION_FLAG) != 0 {
 		flag = code[0] & GPG_EXTENSION_MASK;
+		isext = true;
 		if code.len() < 2 {
 			gpgobj_new_error!{GpgBaseError,"len [{}] < 2" ,code.len()}
 		}
@@ -54,6 +56,7 @@ pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Erro
 			tlen = code[2] as usize;
 		}
 	} else {
+		isext = false;
 		flag = (code[0] >> GPG_NORMAL_SHIFT) & GPG_NORMAL_MASK;
 		match code[0] & 0x3  {
 			0 => {
@@ -89,7 +92,7 @@ pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Erro
 	}
 
 	gpgobj_log_trace!("flag [0x{:02x}] hdrlen [0x{:x}] tlen [0x{:x}]", flag,hdrlen,tlen);
-	Ok((flag,hdrlen,tlen))
+	Ok((flag,isext,hdrlen,tlen))
 }
 
 pub fn encode_gpgobj_header(flag :u8, isext :bool , tlen :usize) -> Result<Vec<u8>,Box<dyn Error>> {
