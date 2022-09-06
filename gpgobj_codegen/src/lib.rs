@@ -86,6 +86,9 @@ struct SequenceSyn {
 	errname :String,
 	parsenames :Vec<String>,
 	kmap :HashMap<String,String>,
+	matchidname :String,
+	matchid :Vec<String>,
+	exthdr : bool,
 }
 
 impl SequenceSyn {
@@ -96,6 +99,9 @@ impl SequenceSyn {
 			errname : "".to_string(),
 			parsenames : Vec::new(),
 			kmap : HashMap::new(),
+			matchidname : "".to_string(),
+			matchid :Vec::new(),
+			exthdr : false,
 		}
 	}
 
@@ -111,6 +117,16 @@ impl SequenceSyn {
 			} else {
 				self.debugenable = false;
 			}
+		} else if k == "exthdr" {
+			if v == "true" {
+				self.exthdr = true;
+			} else {
+				self.exthdr = false;
+			}
+		} else if k == "matchid" {
+			self.matchid.push(format!("{}",v));
+		} else if k == "matchidname" {
+			self.matchidname = format!("{}",v);
 		} else {
 			gpg_gen_new_error!{SequenceSynError,"can not accept k[{}] v [{}]",k,v}
 		}
@@ -121,8 +137,10 @@ impl SequenceSyn {
 		if k == "error" {
 			self.errname = format!("{}",n);
 		} else {
-			self.parsenames.push(format!("{}",k));
-			self.kmap.insert(format!("{}",k),format!("{}",n));
+			if self.matchidname.len() == 0 || self.matchidname != k {
+				self.parsenames.push(format!("{}",k));
+				self.kmap.insert(format!("{}",k),format!("{}",n));
+			}
 		}
 		return;
 	}
@@ -131,6 +149,9 @@ impl SequenceSyn {
 		let mut rets :String = "".to_string();
 		rets.push_str(&format_tab_line(tab , "fn init_gpg() -> Self {"));
 		rets.push_str(&format_tab_line(tab + 1, &format!("{} {{",self.sname)));
+		if self.matchidname.len() > 0 {
+			rets.push_str(&format_tab_line(tab + 2, &format!("{} : 0,", self.matchidname)));
+		}
 		for k in self.parsenames.iter() {
 			let v = self.kmap.get(k).unwrap();
 			rets.push_str(&format_tab_line(tab + 2, &format!("{} : {}::init_gpg(),", k,extract_type_name(v))));
@@ -151,6 +172,49 @@ impl SequenceSyn {
 			rets.push_str(&format_tab_line(tab + 1, "let mut _lastv :usize = 0;"));
 			rets.push_str(&format_tab_line(tab + 1, "let mut _i :usize;"));
 			rets.push_str(&format_tab_line(tab + 1, "let mut _lasti :usize;"));
+		}
+		if self.matchidname.len() > 0 || self.matchid.len() > 0 { 
+			rets.push_str(&format_tab_line(tab + 1, "let  (_flag,_hdrlen,_tlen) = decode_gpgobj_header(code)?;"));
+			if self.debugenable {
+				rets.push_str(&format_tab_line(tab + 1,&format!("_outs = foramt!(\"header 0x{{:x}} hdrlen 0x{{:x}} tlen 0x{{:x}}\",_flag,_hdrlen,_tlen);")));
+				rets.push_str(&format_tab_line(tab + 1,&format!("let _ = _outf.write(_outs.as_bytes())?;")));
+			}
+			rets.push_str(&format_tab_line(tab + 1, "if code.len() < (_hdrlen + _tlen) {"));
+			rets.push_str(&format_tab_line(tab + 2, &format!("gpgobj_new_error!{{ {}, \"{{}} < {{}} + {{}}\", code.len(),_hdrlen,_tlen}}", self.errname)));
+			rets.push_str(&format_tab_line(tab + 1, "}"));
+			if self.matchid.len() > 0 {
+				let mut c :String = "".to_string();
+
+				c.push_str("if ");
+				for _i in 0..self.matchid.len() {
+					if _i > 0 {
+						c.push_str(" && ");
+					}
+					c.push_str(&format!(" _flag != {}",self.matchid[_i]));
+				}
+				c.push_str("{");
+				rets.push_str(&format_tab_line(tab + 1,&c));
+				c = "".to_string();
+				c.push_str("gpgobj_new_error!{ ");
+				c.push_str(&self.errname);
+				c.push_str(", \" flag not in [");
+				for _i in 0..self.matchid.len() {
+					if _i > 0 {
+						c.push_str(",");
+					}
+					c.push_str(&(self.matchid[_i]));
+				}
+				c.push_str("]\"");
+				c.push_str("}");
+				rets.push_str(&format_tab_line(tab + 2, &c));
+				rets.push_str(&format_tab_line(tab + 1,"}"));
+			}
+
+			if self.matchidname.len() > 0 {
+				rets.push_str(&format_tab_line(tab + 1,&format!("self.{} = _flag;",self.matchidname)));
+			}
+			rets.push_str(&format_tab_line(tab + 1,"retv += _hdrlen;"));
+			rets.push_str(&format_tab_line(tab + 1,"_endsize = _hdrlen + _tlen;"));
 		}
 		if self.debugenable {
 			rets.push_str(&format_tab_line(tab + 1, "_lastv = retv;"));
@@ -242,12 +306,10 @@ impl SequenceSyn {
 		} else {
 			rets.push_str(&format_tab_line(tab + 1, "let encv :Vec<u8>;"));
 		}
-
-
 		
 		for k in self.parsenames.iter() {
 			rets.push_str(&format_tab_line(tab + 1, ""));
-			rets.push_str(&format_tab_line(tab + 1, &format!("encv = self.{}.encode_asn1()?;",k)));
+			rets.push_str(&format_tab_line(tab + 1, &format!("encv = self.{}.encode_gpg()?;",k)));
 			rets.push_str(&format_tab_line(tab + 1, "for i in 0..encv.len() {"));
 			rets.push_str(&format_tab_line(tab + 2, "_v8.push(encv[i]);"));
 			rets.push_str(&format_tab_line(tab + 1, "}"));
@@ -256,6 +318,14 @@ impl SequenceSyn {
 				rets.push_str(&format_tab_line(tab + 1,&format!("_outs = format!(\"format {}.{} {{:?}}\\n\",encv);", self.sname, k)));
 				rets.push_str(&format_tab_line(tab + 1,"_outf.write(_outs.as_bytes())?;"));
 			}
+		}
+
+		if self.matchidname.len() > 0 {
+			rets.push_str(&format_tab_line(tab + 1,&format!("encv = encode_gpgobj_header(self.{},true,_v8.len())?;",self.matchidname)));
+			rets.push_str(&format_tab_line(tab + 1,&format!("for _i in 0.._v8.len() {{")));
+			rets.push_str(&format_tab_line(tab + 2,&format!("encv.push(_v8[_i]);")));
+			rets.push_str(&format_tab_line(tab + 1,&format!("}}")));
+			rets.push_str(&format_tab_line(tab + 1,"_v8 = encv.clone();"));
 		}
 
 
@@ -278,6 +348,10 @@ impl SequenceSyn {
 		rets.push_str(&format_tab_line(tab + 1, "iowriter.write(s.as_bytes())?;"));
 		
 		rets.push_str(&format_tab_line(tab + 1, ""));
+		if self.matchidname.len() > 0 {
+			rets.push_str(&format_tab_line(tab + 1, &format!("s = gpgobj_format_line(tab + 1 ,&format!(\"{} code [0x{{:x}}]\", self.{}));", self.matchidname,self.matchidname)));
+			rets.push_str(&format_tab_line(tab + 1, &format!("let _ = iowriter.write(s.as_bytes())?;")));
+		}
 		for k in self.parsenames.iter() {
 			rets.push_str(&format_tab_line(tab + 1, &format!("s = format!(\"{}\");", k)));
 			rets.push_str(&format_tab_line(tab + 1, &format!("self.{}.print_gpg(&s,tab + 1, iowriter)?;",k)));

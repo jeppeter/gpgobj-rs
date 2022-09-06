@@ -10,3 +10,4 @@ lazy_static = "^1.4.0"
 chrono = "^0.4.0"
 num-bigint = "^0.4.3"
 num-traits = "^0.2.5"
+gpgobj_codegen = { path = "../gpgobj_codegen"}

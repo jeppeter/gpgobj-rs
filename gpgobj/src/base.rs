@@ -14,7 +14,7 @@ use num_traits::{Zero};
 gpgobj_error_class!{GpgBaseError}
 
 
-pub (crate) fn decode_gpg_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Error>> {
+pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Error>> {
 	let flag :u8;
 	let hdrlen :usize;
 	let mut tlen :usize;
@@ -90,6 +90,57 @@ pub (crate) fn decode_gpg_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn
 
 	gpgobj_log_trace!("flag [0x{:02x}] hdrlen [0x{:x}] tlen [0x{:x}]", flag,hdrlen,tlen);
 	Ok((flag,hdrlen,tlen))
+}
+
+pub fn encode_gpgobj_header(flag :u8, isext :bool , tlen :usize) -> Result<Vec<u8>,Box<dyn Error>> {
+	let mut retv :Vec<u8> = Vec::new();
+	let firstcode :u8;
+	if isext {
+		if (flag & GPG_EXTENSION_MASK) != flag {
+			gpgobj_new_error!{GpgBaseError,"flag [0x{:x}] not enough [0x{:x}]",flag, GPG_EXTENSION_MASK}
+		}
+		firstcode = GPG_EXTHDR_LEN_MASK | (flag & GPG_EXTENSION_MASK);
+		retv.push(firstcode);
+		if tlen < GPG_NORMAL_MASK as usize {
+			retv.push(tlen as u8);
+		} else {
+			let max2 :usize = 32 * 256 + GPG_NORMAL_MASK as usize;
+			let mut clen = tlen;
+			if clen < max2 {
+				clen -= 192;
+				let c = ((clen / 256) as usize + 192) as u8;
+				retv.push(c);
+				let c = (clen % 256) as u8;
+				retv.push(c);
+			} else {
+				retv.push(0xff);
+				retv.push(((clen >> 24) & 0xff) as u8);
+				retv.push(((clen >> 16) & 0xff) as u8);
+				retv.push(((clen >> 8) & 0xff) as u8);
+				retv.push(((clen >> 0) & 0xff) as u8);
+			}
+		}
+	} else {
+		if (flag & GPG_NORMAL_MASK) != flag {
+			gpgobj_new_error!{GpgBaseError,"flag [0x{:x}] not enough [0x{:x}]",flag, GPG_NORMAL_MASK}
+		}
+		firstcode = GPG_NORMAL_MASK | ((flag & GPG_NORMAL_MASK) << GPG_NORMAL_SHIFT );
+		if tlen < 256 { 
+			retv.push(firstcode);
+			retv.push(tlen as u8);
+		} else if tlen < (1 << 16) {
+			retv.push(firstcode | 1);
+			retv.push(((tlen >> 8) & 0xff) as u8);
+			retv.push(((tlen >> 0) & 0xff) as u8);
+		} else {
+			retv.push(firstcode | 3);
+			retv.push(((tlen >> 24) & 0xff) as u8);
+			retv.push(((tlen >> 16) & 0xff) as u8);
+			retv.push(((tlen >> 8) & 0xff) as u8);
+			retv.push(((tlen >> 0) & 0xff) as u8);
+		}
+	}
+	Ok(retv)
 }
 
 

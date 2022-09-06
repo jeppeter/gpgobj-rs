@@ -140,3 +140,113 @@ macro_rules! gpgobj_log_trace {
 		gpgobj_debug_out(40, &_c);
 	}
 }
+
+#[macro_export]
+macro_rules! gpgobj_assert {
+	($v:expr , $($arg:tt)+) => {
+		if !($v) {
+			let mut _c :String= format!("[{}:{}] ",file!(),line!());
+			_c.push_str(&(format!($($arg)+)[..]));
+			panic!("gpgobj", _c);
+		}
+	}
+}
+
+
+#[macro_export]
+macro_rules! gpgobj_format_buffer_log {
+	($buf:expr,$len:expr,$info:tt,$iv:expr,$($arg:tt)+) => {
+		let mut c :String = format!("[{}:{}]",file!(),line!());
+		c.push_str(&format!("{} ",$info));
+		c.push_str(&gpgobj_log_get_timestamp());
+		c.push_str(": ");
+		c.push_str(&(format!($($arg)+)[..]));
+		let _ptr :*const u8 = $buf as *const u8;
+		let  mut _ci :usize;
+		let _totallen: usize = $len as usize;
+		let mut _lasti :usize = 0;
+		let mut _nb :u8;
+		c.push_str(&format!(" buffer [{:?}][{}]",_ptr,_totallen));
+		_ci = 0;
+		while _ci < _totallen {
+			if (_ci % 16) == 0 {
+				if _ci > 0 {
+					c.push_str("    ");
+					while _lasti < _ci {
+						unsafe{
+							_nb = *_ptr.offset(_lasti as isize);	
+						}
+						
+						if _nb >= 0x20 && _nb <= 0x7e {
+							c.push(_nb as char);
+						} else {
+							c.push_str(".");
+						}
+						_lasti += 1;
+					}
+				}
+				c.push_str(&format!("\n0x{:08x}:", _ci));
+			}
+			unsafe {_nb = *_ptr.offset(_ci as isize);}			
+			c.push_str(&format!(" 0x{:02x}",_nb));
+			_ci += 1;
+		}
+
+		if _lasti < _ci {
+			while (_ci % 16) != 0 {
+				c.push_str("     ");
+				_ci += 1;
+			}
+
+			c.push_str("    ");
+
+			while _lasti < _totallen {
+				unsafe {_nb = *_ptr.offset(_lasti as isize);}
+				if _nb >= 0x20 && _nb <= 0x7e {
+					c.push(_nb as char);
+				} else {
+					c.push_str(".");
+				}
+				_lasti += 1;
+			}
+			//c.push_str("\n");
+		}
+		gpgobj_debug_out($iv,&c);
+	}
+}
+
+#[macro_export]
+macro_rules! gpgobj_debug_buffer_error {
+	($buf:expr,$len:expr,$($arg:tt)+) => {
+		gpgobj_format_buffer_log!($buf,$len,"<ERROR>",0,$($arg)+);
+	}
+}
+
+#[macro_export]
+macro_rules! gpgobj_debug_buffer_warn {
+	($buf:expr,$len:expr,$($arg:tt)+) => {
+		gpgobj_format_buffer_log!($buf,$len,"<WARN>",1,$($arg)+);
+	}
+}
+
+#[macro_export]
+macro_rules! gpgobj_debug_buffer_info {
+	($buf:expr,$len:expr,$($arg:tt)+) => {
+		gpgobj_format_buffer_log!($buf,$len,"<INFO>",2,$($arg)+);
+	}
+}
+
+#[macro_export]
+macro_rules! asn1obj_debug_buffer_debug {
+	($buf:expr,$len:expr,$($arg:tt)+) => {
+		gpgobj_format_buffer_log!($buf,$len,"<DEBUG>",3,$($arg)+);
+	}
+}
+
+#[macro_export]
+macro_rules! gpgobj_debug_buffer_trace {
+	($buf:expr,$len:expr,$($arg:tt)+) => {
+		gpgobj_format_buffer_log!($buf,$len,"<TRACE>",4,$($arg)+);
+	}
+}
+

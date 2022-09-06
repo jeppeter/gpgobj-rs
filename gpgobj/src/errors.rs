@@ -2,12 +2,14 @@
 #[macro_export]
 macro_rules! gpgobj_error_class {
 	($type:ident) => {
-		#[derive(Debug,Clone)]
+		#[allow(dead_code)]
+		#[derive(Debug,Clone)]		
 		pub struct $type {
 			msg :String,		
 		}
 
-		impl $type {
+		#[allow(dead_code)]
+		impl $type {			
 			fn create(c :&str) -> $type {
 				$type {msg : format!("{}",c)}
 			}
