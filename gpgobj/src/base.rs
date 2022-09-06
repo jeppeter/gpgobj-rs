@@ -155,7 +155,7 @@ pub struct GpgVersion {
 impl GpgOp for GpgVersion {
 	fn init_gpg() -> Self {
 		GpgVersion {
-			version : 4,
+			version : 0,
 		}
 	}
 
@@ -165,9 +165,6 @@ impl GpgOp for GpgVersion {
 		if code.len() < retv {
 			gpgobj_new_error!{GpgBaseError,"[{}] < {}", code.len(),retv}
 		}		
-		if code[0] != 4 && code[0] != 0 {
-			gpgobj_new_error!{GpgBaseError,"version [{}] not valid", code[0]}
-		}
 		self.version = code[0];
 		Ok(retv)
 	}
