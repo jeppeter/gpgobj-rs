@@ -239,7 +239,167 @@ impl GpgTime {
 		return dt;		
 	}
 
-	
+    fn parse_value(&self, s :&str) -> Result<i64,Box<dyn Error>> {
+        match i64::from_str_radix(s,10) {
+            Ok(v) => {              
+                return Ok(v);
+            },
+            Err(e) => {
+                gpgobj_new_error!{GpgBaseError,"parse [{}] error[{:?}]",s,e}
+            }
+        }
+    }
+
+    fn check_data_valid(&self, year :i64, mon :i64,mday :i64,hour :i64, min :i64,sec :i64) -> Result<(),Box<dyn Error>> {
+        if year < 1900  ||  year > 2100 {
+            gpgobj_new_error!{GpgBaseError,"year [{}] < 1900" ,year}
+        }
+        if mon < 1 || mon > 12 {
+            gpgobj_new_error!{GpgBaseError,"mon {} not valid ", mon}
+        }
+
+        if mday < 1 || mday > 31 {
+            gpgobj_new_error!{GpgBaseError,"mday {} not valid", mday}
+        }
+
+        if hour < 0 || hour > 23 {
+            gpgobj_new_error!{GpgBaseError,"hour {} not valid", hour}  
+        }
+
+        if min < 0 || min > 59 {
+            gpgobj_new_error!{GpgBaseError,"min {} not valid", min}
+        }
+
+        if sec < 0 || sec > 59 {
+            gpgobj_new_error!{GpgBaseError,"sec {} not valid", sec}    
+        }
+
+        if (mon == 4 || mon == 6 || mon == 9 || mon == 11) && mday > 30 {
+            gpgobj_new_error!{GpgBaseError,"mday {} not valid in mon {}", mday,mon}    
+        }
+
+        if mon == 2 {
+            if (year % 4) != 0 && mday > 28 {
+                gpgobj_new_error!{GpgBaseError,"mday {} not valid in mon {}", mday,mon}    
+            } else if (year % 4) == 0 && (year % 100) != 0 && mday > 29 {
+                gpgobj_new_error!{GpgBaseError,"mday {} not valid in mon {}", mday,mon}    
+            } else if (year % 4) == 0 && (year % 100) == 0 && (year % 400) != 0 && mday > 28 {
+                gpgobj_new_error!{GpgBaseError,"mday {} not valid in mon {}", mday,mon}    
+            } else if (year % 4) == 0 && (year % 400) == 0 && mday > 29  {
+                gpgobj_new_error!{GpgBaseError,"mday {} not valid in mon {}", mday,mon}
+            } else if mday > 28 {
+                gpgobj_new_error!{GpgBaseError,"mday {} not valid in mon {}", mday,mon}
+            }           
+        }
+        Ok(())
+    }
+
+
+    fn get_time_val(&self, times :&str) -> Result<(i64,i64,i64,i64,i64,i64),Box<dyn Error>> {
+        let mut year :i64;
+        let mut mon :i64;
+        let mut mday :i64;
+        let mut hour :i64;
+        let mut min :i64;
+        let mut sec :i64;
+        gpgobj_log_trace!("times [{}]", times);
+
+        if times.len() == 10 {
+            year = self.parse_value(&times[0..4])?;
+            mon = self.parse_value(&times[4..6])?;
+            mday = self.parse_value(&times[6..8])?;
+            hour = self.parse_value(&times[8..10])?;
+            min = 0;
+            sec = 0;
+            let ov = self.check_data_valid(year,mon,mday,hour,min,sec);
+            if ov.is_ok() {
+                return Ok((year,mon,mday,hour,min,sec));
+            }
+
+            /**/
+            year = self.parse_value(&times[0..2])?;
+            if year < 70 {
+                year += 2000; 
+            } else {
+                year += 1900;
+            }
+            mon = self.parse_value(&times[2..4])?;
+            mday = self.parse_value(&times[4..6])?;
+            hour = self.parse_value(&times[6..8])?;
+            min = self.parse_value(&times[8..10])?;
+            sec = 0;
+            let ov = self.check_data_valid(year,mon,mday,hour,min,sec);
+            if ov.is_err() {
+                let e = ov.err().unwrap();
+                return Err(e);
+            }
+            return Ok((year,mon,mday,hour,min,sec));
+        } 
+
+        if times.len() == 12 {
+            year = self.parse_value(&times[0..4])?;
+            mon = self.parse_value(&times[4..6])?;
+            mday = self.parse_value(&times[6..8])?;
+            hour = self.parse_value(&times[8..10])?;
+            min = self.parse_value(&times[10..12])?;
+            sec = 0;
+            let ov = self.check_data_valid(year,mon,mday,hour,min,sec);
+            if ov.is_ok() {
+                return Ok((year,mon,mday,hour,min,sec));
+            }
+
+            /**/
+            year = self.parse_value(&times[0..2])?;
+            if year < 70 {
+                year += 2000; 
+            } else {
+                year += 1900;
+            }
+            mon = self.parse_value(&times[2..4])?;
+            mday = self.parse_value(&times[4..6])?;
+            hour = self.parse_value(&times[6..8])?;
+            min = self.parse_value(&times[8..10])?;
+            sec = self.parse_value(&times[10..12])?;
+            let ov = self.check_data_valid(year,mon,mday,hour,min,sec);
+            if ov.is_err() {
+                let e = ov.err().unwrap();
+                return Err(e);
+            }
+            return Ok((year,mon,mday,hour,min,sec));
+        }
+
+        if times.len() >= 14 {
+            year = self.parse_value(&times[0..4])?;
+            mon = self.parse_value(&times[4..6])?;
+            mday = self.parse_value(&times[6..8])?;
+            hour = self.parse_value(&times[8..10])?;
+            min = self.parse_value(&times[10..12])?;
+            sec = self.parse_value(&times[12..14])?;
+            let ov = self.check_data_valid(year,mon,mday,hour,min,sec);
+            if ov.is_err() {
+                let e = ov.err().unwrap();
+                return Err(e);
+            }
+            return Ok((year,mon,mday,hour,min,sec));
+        }
+
+        gpgobj_new_error!{GpgBaseError,"not valid [{}] times", times}
+    }
+
+    pub fn date_to_time(&mut self,dt :&DateTime<Utc>) -> Result<(),Box<dyn Error>> {
+		let s = format!("{}",dt.format("%s"));
+		let iv = self.parse_value(&s)?;
+		self.timeval = iv as u32;
+		Ok(())
+    }
+
+    pub fn str_to_time(&mut self, s :&str) -> Result<(),Box<dyn Error>> {
+    	let (year,mon,mday,hour,min,sec) = self.get_time_val(s)?;
+    	self.check_data_valid(year,mon,mday,hour,min,sec)?;
+    	let dt :DateTime<Utc>= Utc.ymd(year as i32,mon as u32,mday as u32).and_hms(hour as u32,min as u32,sec as u32);
+    	return self.date_to_time(&dt);
+    }
+
 }
 
 impl GpgOp for GpgTime {
