@@ -5,4 +5,5 @@ mod errors;
 pub mod consts;
 pub mod strop;
 pub mod gpgimpl;
-pub mod gpgbase;
+pub mod base;
+pub mod complex;
