@@ -1,0 +1,20 @@
+[package]
+name = "gpgobj_codegen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+
+[dependencies]
+lazy_static = "^1.4.0"
+chrono = "^0.4.0"
+regex = "1"
+proc-macro2 = { version = "1.0.32", default-features = false }
+syn = { version = "^1", features = ["full", "parsing"] }
+rand = "^0.8.5"
+bytes = "^0.5.3"
+quote = "^1.0.20"
