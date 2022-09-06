@@ -3,109 +3,29 @@ use super::gpgimpl::{GpgOp};
 #[allow(unused_imports)]
 use super::logger::{gpgobj_debug_out,gpgobj_log_get_timestamp};
 use super::{gpgobj_log_trace,gpgobj_error_class,gpgobj_new_error};
-use super::consts::{PUBKEY_ALGO_RSA,GPG_HEADER_EXTENSION_FLAG,GPG_EXTENSION_MASK,GPG_NORMAL_MASK,GPG_NORMAL_SHIFT,GPG_EXTHDR_MAX_CODE,GPG_EXTHDR_LEN_MASK,PKT_PUBLIC_KEY};
-use num_bigint::{BigUint};
 use super::strop::{gpgobj_format_line};
-use super::base::{GpgTime};
+use super::base::{GpgTime,GpgVersion,decode_gpg_header,GpgBigNum,GpgEncAlgorithm};
+use super::consts::{PKT_PUBLIC_KEY};
 use std::error::Error;
 use std::io::Write;
 
 
-gpgobj_error_class!{GpgBaseError}
-
-
-fn decode_gpg_header(code :&[u8]) -> Result<(u8,usize,usize),Box<dyn Error>> {
-	let flag :u8;
-	let hdrlen :usize;
-	let mut tlen :usize;
-
-	if code.len() < 1 {
-		gpgobj_new_error!{GpgBaseError,"len [{}] < 1", code.len()}
-	}
-
-	if (code[0] & GPG_HEADER_EXTENSION_FLAG) != 0 {
-		flag = code[0] & GPG_EXTENSION_MASK;
-		if code.len() < 2 {
-			gpgobj_new_error!{GpgBaseError,"len [{}] < 2" ,code.len()}
-		}
-		if code[1] == GPG_EXTHDR_MAX_CODE {
-			hdrlen = 1 + 4 + 1;
-			if code.len() < 6 {
-				gpgobj_new_error!{GpgBaseError,"len [{}] < 6" ,code.len()}
-			}
-			tlen  = 0;
-			tlen += (code[2] as usize) << 24;
-			tlen += (code[3] as usize) << 16;
-			tlen += (code[4] as usize) << 8;
-			tlen += (code[5] as usize) << 0;
-		} else if (code[1] & GPG_EXTHDR_LEN_MASK) != 0 {
-			hdrlen = 1 + 2;
-			if code.len() < 4 {
-				gpgobj_new_error!{GpgBaseError,"len [{}] < 4" ,code.len()}
-			}
-			tlen = GPG_EXTHDR_LEN_MASK as usize;
-			tlen += ((code[1] - GPG_EXTHDR_LEN_MASK) as usize ) << 8;
-			tlen += code[2] as usize;
-		} else {
-			hdrlen = 1 + 1;
-			if code.len() < 3 {
-				gpgobj_new_error!{GpgBaseError,"len [{}] < 3" ,code.len()}		
-			}
-			tlen = code[2] as usize;
-		}
-	} else {
-		flag = (code[0] >> GPG_NORMAL_SHIFT) & GPG_NORMAL_MASK;
-		match code[0] & 0x3  {
-			0 => {
-				if code.len() < 2 {
-					gpgobj_new_error!{GpgBaseError,"normal len [{}] < 2" ,code.len()}
-				}
-				hdrlen = 2;
-				tlen = code[1] as usize;
-			},
-			1 => {
-				if code.len() < 3 {
-					gpgobj_new_error!{GpgBaseError,"normal len [{}] < 3" ,code.len()}
-				}
-				hdrlen = 3;
-				tlen = (code[1] as usize) << 8;
-				tlen |= code[2] as usize;
-			},
-			_ => {
-				if code.len() < 5 {
-					gpgobj_new_error!{GpgBaseError,"normal len [{}] < 3" ,code.len()}
-				}
-				hdrlen = 5;
-				tlen = (code[1] as usize) << 24;
-				tlen |= (code[2] as usize) << 16;
-				tlen |= (code[3] as usize) << 8;
-				tlen |= (code[4] as usize) << 0;
-			},
-		}
-	}
-
-	if code.len() < (tlen + hdrlen) {
-		gpgobj_new_error!{GpgBaseError,"code [{}] < len[{}]", code.len(), tlen + hdrlen}
-	}
-
-	gpgobj_log_trace!("flag [0x{:02x}] hdrlen [0x{:x}] tlen [0x{:x}]", flag,hdrlen,tlen);
-	Ok((flag,hdrlen,tlen))
-}
+gpgobj_error_class!{GpgComplexError}
 
 pub struct GpgPubKey {
-	pub version : u8,
+	pub version : GpgVersion,
 	pub timestamp : GpgTime,
-	pub algo :u8,
-	pub nums :Vec<BigUint>,
+	pub algo :GpgEncAlgorithm,
+	pub nums :Vec<GpgBigNum>,
 }
 
 
 impl GpgOp for GpgPubKey {
 	fn init_gpg() -> Self {
 		GpgPubKey {
-			version : 1,
+			version : GpgVersion::init_gpg(),
 			timestamp : GpgTime::init_gpg(),
-			algo : PUBKEY_ALGO_RSA,
+			algo : GpgEncAlgorithm::init_gpg(),
 			nums : Vec::new(),
 		}
 	}
@@ -113,16 +33,47 @@ impl GpgOp for GpgPubKey {
 	fn decode_gpg(&mut self, code :&[u8]) -> Result<usize,Box<dyn Error>> {
 		let  retv :usize;
 		let (flag , hdrlen,tlen) = decode_gpg_header(code)?;
+		let mut curidx : usize = 0;
 		if flag != PKT_PUBLIC_KEY {
-			gpgobj_new_error!{GpgBaseError,"flag [0x{:02x}] != [0x{:02x}]", flag,PKT_PUBLIC_KEY}
+			gpgobj_new_error!{GpgComplexError,"flag [0x{:02x}] != [0x{:02x}]", flag,PKT_PUBLIC_KEY}
+		}
+
+		if code.len() < (hdrlen + tlen) {
+			gpgobj_new_error!{GpgComplexError,"code [{}] < {} + {}", code.len(),hdrlen, tlen}
+		}
+
+		if tlen < (1 + 4 + 1) {
+			gpgobj_new_error!{GpgComplexError,"tlen [{}] < 1 + 4 + 1", tlen}	
+		}
+
+		curidx += self.version.decode_gpg(&code[hdrlen+curidx..hdrlen+tlen])?;
+		curidx += self.timestamp.decode_gpg(&code[hdrlen+curidx..hdrlen+tlen])?;
+		curidx += self.algo.decode_gpg(&code[hdrlen+curidx..hdrlen+tlen])?;
+		self.nums = Vec::new();
+		while curidx < tlen {
+			let mut bn  = GpgBigNum::init_gpg();
+			curidx += bn.decode_gpg(&code[hdrlen+curidx..hdrlen+tlen])?;
+			self.nums.push(bn.clone());
 		}
 
 		retv = hdrlen + tlen;
+		gpgobj_log_trace!("decode GpgPubKey [0x{:x}]",retv);
 		Ok(retv)
 	}
 
 	fn encode_gpg(&self) -> Result<Vec<u8>, Box<dyn Error>> {
-		let retv :Vec<u8> = Vec::new();
+		let mut retv :Vec<u8> = Vec::new();
+		let mut cvec :Vec<u8>;
+		cvec = self.version.encode_gpg()?;
+		retv.extend(cvec.iter().copied());
+		cvec = self.timestamp.encode_gpg()?;
+		retv.extend(cvec.iter().copied());
+		cvec = self.algo.encode_gpg()?;
+		retv.extend(cvec.iter().copied());
+		for i in 0..self.nums.len() {
+			cvec = self.nums[i].encode_gpg()?;
+			retv.extend(cvec.iter().copied());
+		}
 		Ok(retv)
 	}
 
@@ -130,10 +81,13 @@ impl GpgOp for GpgPubKey {
 		let mut c :String;
 		c = gpgobj_format_line(tab,&format!("{} Public Key", name));
 		iowriter.write(c.as_bytes())?;
-
+		self.version.print_gpg("version",tab + 1, iowriter)?;
+		self.timestamp.print_gpg("timestamp",tab + 1, iowriter)?;
+		self.algo.print_gpg("algo",tab + 1, iowriter)?;
+		for i in 0..self.nums.len() {
+			c = format!("num[{}]",i);
+			self.nums[i].print_gpg(&c,tab + 1, iowriter)?;
+		}
 		Ok(())
 	}
-
-
-
 }
