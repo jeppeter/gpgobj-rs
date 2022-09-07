@@ -305,7 +305,7 @@ impl SequenceSyn {
 			rets.push_str(&format_tab_line(tab + 1, "let mut _outf = std::io::stderr();"));
 			rets.push_str(&format_tab_line(tab + 1, "let mut _outs :String;"));
 		}
-		if self.parsenames.len() > 1 {
+		if self.parsenames.len() > 1 || self.matchidname.len() > 0 {
 			rets.push_str(&format_tab_line(tab + 1, "let mut encv :Vec<u8>;"));	
 		} else {
 			rets.push_str(&format_tab_line(tab + 1, "let encv :Vec<u8>;"));

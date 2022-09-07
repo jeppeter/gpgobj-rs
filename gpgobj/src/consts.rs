@@ -20,6 +20,7 @@ pub const PUBKEY_ALGO_EDDSA :u8 = 22;
 pub const PUBKEY_ALGO_PRIVATE10:u8 = 110;
 
 pub const PKT_PUBLIC_KEY :u8 = 6;
+pub const PKT_USER_ID :u8 = 13;
 
 pub (crate) const GPG_CRC24_INIT :u32 = 0xB704CE;
 pub (crate) const GPG_CRC24_POLY :u32 = 0x864CFB;
