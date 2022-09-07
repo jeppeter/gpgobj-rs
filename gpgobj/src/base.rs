@@ -4,14 +4,94 @@ use std::error::Error;
 use super::{gpgobj_log_trace,gpgobj_error_class,gpgobj_new_error};
 use super::strop::{gpgobj_format_line};
 use super::logger::{gpgobj_debug_out,gpgobj_log_get_timestamp};
-use super::consts::{PUBKEY_ALGO_RSA,GPG_HEADER_EXTENSION_FLAG,GPG_EXTENSION_MASK,GPG_NORMAL_MASK,GPG_NORMAL_SHIFT,GPG_EXTHDR_MAX_CODE,GPG_EXTHDR_LEN_MASK};
-use super::consts::{PUBKEY_ALGO_RSA_E,PUBKEY_ALGO_RSA_S,PUBKEY_ALGO_ELGAMAL_E,PUBKEY_ALGO_DSA,PUBKEY_ALGO_ECDH,PUBKEY_ALGO_ECDSA,PUBKEY_ALGO_ELGAMAL,PUBKEY_ALGO_EDDSA,PUBKEY_ALGO_PRIVATE10};
+use super::consts::*;
 use chrono::prelude::*;
 use std::io::Write;
 use num_bigint::{BigUint};
 use num_traits::{Zero};
 
 gpgobj_error_class!{GpgBaseError}
+
+
+pub fn get_pubk_nsig_cnt(pubkalgo :u8) -> usize {
+    if pubkalgo == PUBKEY_ALGO_RSA || 
+    pubkalgo == PUBKEY_ALGO_RSA_E ||
+    pubkalgo == PUBKEY_ALGO_RSA_S {
+        return 1;
+    } else if pubkalgo == PUBKEY_ALGO_DSA ||
+    pubkalgo == PUBKEY_ALGO_ECDSA ||
+    pubkalgo == PUBKEY_ALGO_ELGAMAL ||
+    pubkalgo == PUBKEY_ALGO_EDDSA {
+        return 2;
+    }
+    return 0;
+}
+
+pub fn get_pubk_str(pubkalgo :u8) -> String {
+    let rets :String;
+    match pubkalgo {
+        PUBKEY_ALGO_RSA => {
+            rets = format!("PUBKEY_ALGO_RSA");
+        },
+        PUBKEY_ALGO_RSA_E => {
+            rets = format!("PUBKEY_ALGO_RSA_E");
+        },
+        PUBKEY_ALGO_RSA_S => {
+            rets = format!("PUBKEY_ALGO_RSA_S");
+        },
+        PUBKEY_ALGO_DSA => {
+            rets = format!("PUBKEY_ALGO_DSA");
+        },
+        PUBKEY_ALGO_ECDH => {
+            rets= format!("PUBKEY_ALGO_ECDH");
+        },
+        PUBKEY_ALGO_ECDSA => {
+            rets = format!("PUBKEY_ALGO_ECDSA");
+        },
+        PUBKEY_ALGO_ELGAMAL => {
+            rets = format!("PUBKEY_ALGO_ELGAMAL");
+        },
+        PUBKEY_ALGO_EDDSA => {
+            rets = format!("PUBKEY_ALGO_EDDSA");
+        },
+        _ => {
+            rets = format!("unknown {}", pubkalgo);
+        }
+    }
+    return rets;
+}
+
+pub fn get_digalgo_str(digalgo :u8) -> String {
+    let rets :String;
+    match digalgo {
+        DIGEST_ALGO_MD5 => {
+            rets = format!("DIGEST_ALGO_MD5");
+        },
+        DIGEST_ALGO_SHA1 => {
+            rets = format!("DIGEST_ALGO_SHA1");
+        },
+        DIGEST_ALGO_RMD160 => {
+            rets = format!("DIGEST_ALGO_RMD160");
+        },
+        DIGEST_ALGO_SHA256 => {
+            rets = format!("DIGEST_ALGO_SHA256");
+        },
+        DIGEST_ALGO_SHA384 => {
+            rets = format!("DIGEST_ALGO_SHA384");
+        },
+        DIGEST_ALGO_SHA512 => {
+            rets = format!("DIGEST_ALGO_SHA512");
+        },
+        DIGEST_ALGO_SHA224 => {
+            rets = format!("DIGEST_ALGO_SHA224");
+        },
+        _ => {
+            rets = format!("unknown {}" ,digalgo);
+        }
+    }
+    return rets;
+}
+
 
 
 pub fn decode_gpgobj_header(code :&[u8]) -> Result<(u8,bool,usize,usize),Box<dyn Error>> {
@@ -692,5 +772,88 @@ impl GpgOp for GpgData {
         }
         iowriter.write(s.as_bytes())?;
         Ok(())      
+    }
+}
+
+#[derive(Clone)]
+pub struct GpgU16 {
+    pub data :u16,
+}
+
+
+impl GpgOp for GpgU16 {
+    fn init_gpg() -> Self {
+        GpgU16 {
+            data : 0,
+        }
+    }
+
+    fn decode_gpg(&mut self, code :&[u8]) -> Result<usize,Box<dyn Error>> {
+        if code.len() < 2 {
+            gpgobj_new_error!{GpgBaseError,"code [{}] < 4", code.len()}
+        }
+        self.data = 0;
+        self.data |= (code[0] as u16) << 8;
+        self.data |= (code[1] as u16) << 0;
+
+        Ok(2)
+    }
+
+    fn encode_gpg(&self) -> Result<Vec<u8>,Box<dyn Error>> {
+        let mut retv :Vec<u8> = Vec::new();
+        retv.push((self.data >> 8) as u8);
+        retv.push((self.data >> 0) as u8);
+        Ok(retv)
+    }
+
+    fn print_gpg<U :Write>(&self,name :&str,tab :i32, iowriter :&mut U) -> Result<(),Box<dyn Error>> {
+        let s :String;
+        s = gpgobj_format_line(tab, &format!("{} GpgU16 {} 0x{:x}",name,self.data,self.data));
+        iowriter.write(s.as_bytes())?;
+        Ok(())
+    }
+}
+
+
+#[derive(Clone)]
+pub struct GpgU32 {
+    pub data :u32,
+}
+
+
+impl GpgOp for GpgU32 {
+    fn init_gpg() -> Self {
+        GpgU32 {
+            data : 0,
+        }
+    }
+
+    fn decode_gpg(&mut self, code :&[u8]) -> Result<usize,Box<dyn Error>> {
+        if code.len() < 4 {
+            gpgobj_new_error!{GpgBaseError,"code [{}] < 4", code.len()}
+        }
+        self.data = 0;
+        self.data |= (code[0] as u32) << 24;
+        self.data |= (code[1] as u32) << 16;
+        self.data |= (code[2] as u32) << 8;
+        self.data |= (code[3] as u32) << 0;
+
+        Ok(4)
+    }
+
+    fn encode_gpg(&self) -> Result<Vec<u8>,Box<dyn Error>> {
+        let mut retv :Vec<u8> = Vec::new();
+        retv.push((self.data >> 24) as u8);
+        retv.push((self.data >> 16) as u8);
+        retv.push((self.data >> 8) as u8);
+        retv.push((self.data >> 0) as u8);
+        Ok(retv)
+    }
+
+    fn print_gpg<U :Write>(&self,name :&str,tab :i32, iowriter :&mut U) -> Result<(),Box<dyn Error>> {
+        let s :String;
+        s = gpgobj_format_line(tab, &format!("{} GpgU32 {} 0x{:x}",name,self.data,self.data));
+        iowriter.write(s.as_bytes())?;
+        Ok(())
     }
 }

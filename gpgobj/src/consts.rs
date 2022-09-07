@@ -21,6 +21,16 @@ pub const PUBKEY_ALGO_PRIVATE10:u8 = 110;
 
 pub const PKT_PUBLIC_KEY :u8 = 6;
 pub const PKT_USER_ID :u8 = 13;
+pub const PKT_SIGNATURE :u8 = 2;
+
+pub const DIGEST_ALGO_MD5 :u8 = 1;
+pub const DIGEST_ALGO_SHA1 :u8 = 2;
+pub const DIGEST_ALGO_RMD160 :u8 = 3;
+pub const DIGEST_ALGO_SHA256 :u8 = 8;
+pub const DIGEST_ALGO_SHA384 :u8 = 9;
+pub const DIGEST_ALGO_SHA512 :u8 = 10;
+pub const DIGEST_ALGO_SHA224 :u8 = 11;
+pub const DIGEST_ALGO_PRIVATE10 :u8 = 110;
 
 pub (crate) const GPG_CRC24_INIT :u32 = 0xB704CE;
 pub (crate) const GPG_CRC24_POLY :u32 = 0x864CFB;
