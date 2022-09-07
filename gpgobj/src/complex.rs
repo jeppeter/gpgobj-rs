@@ -6,8 +6,8 @@ use super::logger::{gpgobj_debug_out,gpgobj_log_get_timestamp};
 use super::{gpgobj_log_trace,gpgobj_error_class,gpgobj_new_error,gpgobj_debug_buffer_trace,gpgobj_format_buffer_log};
 use super::strop::{gpgobj_format_line};
 #[allow(unused_imports)]
-use super::base::{GpgTime,GpgVersion,decode_gpgobj_header,encode_gpgobj_header,GpgBigNum,GpgEncAlgorithm,GpgData,GpgU32,GpgU16,get_pubk_str,get_digalgo_str,get_pubk_nsig_cnt};
-use super::consts::{PKT_PUBLIC_KEY,PKT_USER_ID,PKT_SIGNATURE};
+use super::base::{GpgTime,GpgVersion,decode_gpgobj_header,encode_gpgobj_header,GpgBigNum,GpgEncAlgorithm,GpgData,GpgU32,GpgU16,get_pubk_str,get_digalgo_str,get_pubk_nsig_cnt,GpgU8,cipher_algo_str};
+use super::consts::*;
 use std::error::Error;
 use std::io::Write;
 use gpgobj_codegen::{gpgobj_sequence};
@@ -366,4 +366,165 @@ pub struct GpgPubKeyFile {
 	pub pubkey : GpgPubKey,
 	pub userid : GpgUserId,
 	pub signature :GpgSignature,
-} 
+}
+
+pub struct GpgSessionKey {
+	pub matchid :u8,
+	pub extflag :bool,
+	pub version :GpgVersion,
+	pub cipheralgo :GpgU8,
+	pub mode :GpgU8,
+	pub hashalgo :GpgU8,
+	pub salt :GpgData,
+	pub cnt :GpgU8,
+	pub seskey :GpgData,
+}
+
+impl GpgOp for GpgSessionKey {
+	fn init_gpg() -> Self {
+		let mut retv  = GpgSessionKey {
+			matchid : PKT_SYMKEY_ENC,
+			extflag : false,
+			version : GpgVersion::init_gpg(),
+			cipheralgo : GpgU8::init_gpg(),
+			mode :GpgU8::init_gpg(),
+			hashalgo :GpgU8::init_gpg(),
+			salt : GpgData::init_gpg(),
+			cnt :GpgU8::init_gpg(),
+			seskey : GpgData::init_gpg(),
+		};
+		retv.version.version = 4;
+		retv
+	}
+
+	fn decode_gpg(&mut self, code :&[u8]) -> Result<usize, Box<dyn Error>> {
+		let mut retv :usize = 0;
+		let endsize :usize;
+		let (_flag,_extflag,_hdrlen,_tlen) = decode_gpgobj_header(code)?;
+		if _flag != PKT_SYMKEY_ENC {
+			gpgobj_new_error!{GpgComplexError,"flag [0x{:x}] != PKT_SYMKEY_ENC [0x{:x}]", _flag,PKT_SYMKEY_ENC}
+		}
+
+		self.matchid = _flag;
+		self.extflag = _extflag;
+		retv += _hdrlen;
+		endsize = _hdrlen + _tlen;
+
+		if endsize < (retv + 1) {
+			gpgobj_new_error!{GpgComplexError,"no version space [{}] endsize [{}]", retv, endsize}
+		}
+		retv += self.version.decode_gpg(&code[retv..])?;
+		if self.version.version != 4 {
+			gpgobj_new_error!{GpgComplexError,"version {} != 4" ,self.version.version}
+		}
+		retv += self.cipheralgo.decode_gpg(&code[retv..])?;
+		retv += self.mode.decode_gpg(&code[retv..])?;
+		if (self.mode.data & 0x3 ) != self.mode.data {
+			gpgobj_new_error!{GpgComplexError,"mode {} not in 0..3", self.mode.data}
+		}
+		retv += self.hashalgo.decode_gpg(&code[retv..])?;
+		if self.mode.data == 1 || self.mode.data == 3 {
+			retv += self.salt.decode_gpg(&code[retv..(retv+8)])?;			
+		}
+
+		if self.mode.data == 3 {
+			retv += self.cnt.decode_gpg(&code[retv..])?;
+		}
+
+		self.seskey = GpgData::init_gpg();
+		if endsize > retv {
+			retv += self.seskey.decode_gpg(&code[retv..endsize])?;
+		}
+		Ok(retv)
+	}
+
+	fn encode_gpg(&self) -> Result<Vec<u8>,Box<dyn Error>> {
+		let mut retv :Vec<u8>;
+		let mut encv :Vec<u8> = Vec::new();
+		let mut cv :Vec<u8>;
+
+		if self.version.version != 4 {
+			gpgobj_new_error!{GpgComplexError,"version {} != 4" ,self.version.version}
+		}
+
+		if self.matchid != PKT_SYMKEY_ENC {
+			gpgobj_new_error!{GpgComplexError,"not PKT_SYMKEY_ENC {}" ,self.matchid}
+		}
+
+		if (self.mode.data & 0x3 ) != self.mode.data {
+			gpgobj_new_error!{GpgComplexError,"mode {} not in 0..3", self.mode.data}
+		}
+
+		cv = self.version.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.cipheralgo.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.mode.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.hashalgo.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		if self.mode.data == 1 || self.mode.data == 3 {
+			if self.salt.data.len() != 8 {
+				gpgobj_new_error!{GpgComplexError,"salt.len {} != 8" ,self.salt.data.len()}
+			}
+			cv = self.salt.encode_gpg()?;
+			encv.extend(cv.iter().copied());			
+		}
+
+		if self.mode.data == 3 {
+			cv = self.cnt.encode_gpg()?;
+			encv.extend(cv.iter().copied());			
+		}
+
+		cv = self.seskey.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		retv = encode_gpgobj_header(self.matchid,self.extflag,encv.len())?;
+		retv.extend(encv.iter().copied());
+		Ok(retv)
+	}
+
+	fn print_gpg<U :Write>(&self,name :&str,tab :i32, iowriter :&mut U) -> Result<(),Box<dyn Error>> {
+		let mut s :String;
+		if self.version.version != 4 {
+			gpgobj_new_error!{GpgComplexError,"version {} != 4" ,self.version.version}
+		}
+
+
+		if (self.mode.data & 0x3 ) != self.mode.data {
+			gpgobj_new_error!{GpgComplexError,"mode {} not in 0..3", self.mode.data}
+		}
+
+		if (self.mode.data == 3 || self.mode.data == 1 ) && self.salt.data.len() != 8 {
+			gpgobj_new_error!{GpgComplexError,"salt len {} != 8",self.salt.data.len()}
+		}
+
+		s = gpgobj_format_line(tab , &format!("{} GpgSessionKey", name));
+		iowriter.write(s.as_bytes())?;
+
+		self.version.print_gpg("version", tab + 1, iowriter)?;
+		s = gpgobj_format_line(tab + 1, &format!("cipheralgo {}", cipher_algo_str(self.cipheralgo.data)));
+		iowriter.write(s.as_bytes())?;
+		s = gpgobj_format_line(tab + 1, &format!("digalgo {}", get_digalgo_str(self.hashalgo.data)));
+		iowriter.write(s.as_bytes())?;
+		if self.mode.data == 3 || self.mode.data == 1 {
+			self.salt.print_gpg("salt",tab + 1, iowriter)?;
+		}
+
+		if self.mode.data == 3 {
+			self.cnt.print_gpg("cnt",tab + 1, iowriter)?;
+		}
+		self.seskey.print_gpg("seskey",tab + 1, iowriter)?;
+		Ok(())
+	}
+}
+
+
+#[gpgobj_sequence()] 
+pub struct GpggpgFile {
+	pub seskey :GpgSessionKey,
+}

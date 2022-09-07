@@ -22,6 +22,7 @@ pub const PUBKEY_ALGO_PRIVATE10:u8 = 110;
 pub const PKT_PUBLIC_KEY :u8 = 6;
 pub const PKT_USER_ID :u8 = 13;
 pub const PKT_SIGNATURE :u8 = 2;
+pub const PKT_SYMKEY_ENC :u8 = 3;
 
 pub const DIGEST_ALGO_MD5 :u8 = 1;
 pub const DIGEST_ALGO_SHA1 :u8 = 2;
@@ -31,6 +32,21 @@ pub const DIGEST_ALGO_SHA384 :u8 = 9;
 pub const DIGEST_ALGO_SHA512 :u8 = 10;
 pub const DIGEST_ALGO_SHA224 :u8 = 11;
 pub const DIGEST_ALGO_PRIVATE10 :u8 = 110;
+
+pub const CIPHER_ALGO_NONE :u8 = 0;
+pub const CIPHER_ALGO_IDEA :u8 = 1;
+pub const CIPHER_ALGO_3DES :u8 = 2;
+pub const CIPHER_ALGO_CAST5 :u8 = 3;
+pub const CIPHER_ALGO_BLOWFISH :u8 = 4;
+pub const CIPHER_ALGO_AES :u8 = 7;
+pub const CIPHER_ALGO_AES192 :u8 = 8;
+pub const CIPHER_ALGO_AES256 :u8 = 9;
+pub const CIPHER_ALGO_TWOFISH :u8 = 10;
+pub const CIPHER_ALGO_CAMELLIA128 :u8 = 11;
+pub const CIPHER_ALGO_CAMELLIA192 :u8 = 12;
+pub const CIPHER_ALGO_CAMELLIA256 :u8 = 13;
+pub const CIPHER_ALGO_PRIVATE10 :u8 = 110;
+
 
 pub (crate) const GPG_CRC24_INIT :u32 = 0xB704CE;
 pub (crate) const GPG_CRC24_POLY :u32 = 0x864CFB;

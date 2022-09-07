@@ -61,6 +61,56 @@ pub fn get_pubk_str(pubkalgo :u8) -> String {
     return rets;
 }
 
+pub fn cipher_algo_str(cipheralgo :u8) -> String {
+    let rets :String;
+    match cipheralgo {
+        CIPHER_ALGO_NONE => {
+            rets = format!("CIPHER_ALGO_NONE");
+        },
+        CIPHER_ALGO_IDEA => {
+            rets = format!("CIPHER_ALGO_IDEA");
+        },
+        CIPHER_ALGO_3DES => {
+            rets = format!("CIPHER_ALGO_3DES");
+        },
+        CIPHER_ALGO_CAST5 => {
+            rets = format!("CIPHER_ALGO_CAST5");
+        },
+        CIPHER_ALGO_BLOWFISH => {
+            rets = format!("CIPHER_ALGO_BLOWFISH");
+        },
+        CIPHER_ALGO_AES => {
+            rets = format!("CIPHER_ALGO_AES");
+        },
+        CIPHER_ALGO_AES192 => {
+            rets = format!("CIPHER_ALGO_AES192");
+        },
+        CIPHER_ALGO_AES256 => {
+            rets = format!("CIPHER_ALGO_AES256");
+        },
+        CIPHER_ALGO_TWOFISH => {
+            rets = format!("CIPHER_ALGO_TWOFISH");
+        },
+        CIPHER_ALGO_CAMELLIA128 => {
+            rets = format!("CIPHER_ALGO_CAMELLIA128");
+        },
+        CIPHER_ALGO_CAMELLIA192 => {
+            rets = format!("CIPHER_ALGO_CAMELLIA192");
+        },
+        CIPHER_ALGO_CAMELLIA256 => {
+            rets = format!("CIPHER_ALGO_CAMELLIA256");
+        },
+        CIPHER_ALGO_PRIVATE10 => {
+            rets = format!("CIPHER_ALGO_PRIVATE10");
+        },
+        _ => {
+            rets = format!("unknown {}",cipheralgo);
+        },
+    }
+    return rets;
+}
+
+
 pub fn get_digalgo_str(digalgo :u8) -> String {
     let rets :String;
     match digalgo {
@@ -853,6 +903,43 @@ impl GpgOp for GpgU32 {
     fn print_gpg<U :Write>(&self,name :&str,tab :i32, iowriter :&mut U) -> Result<(),Box<dyn Error>> {
         let s :String;
         s = gpgobj_format_line(tab, &format!("{} GpgU32 {} 0x{:x}",name,self.data,self.data));
+        iowriter.write(s.as_bytes())?;
+        Ok(())
+    }
+}
+
+
+#[derive(Clone)]
+pub struct GpgU8 {
+    pub data :u8,
+}
+
+
+impl GpgOp for GpgU8 {
+    fn init_gpg() -> Self {
+        GpgU8 {
+            data : 0,
+        }
+    }
+
+    fn decode_gpg(&mut self, code :&[u8]) -> Result<usize,Box<dyn Error>> {
+        if code.len() < 1 {
+            gpgobj_new_error!{GpgBaseError,"code [{}] < 1", code.len()}
+        }
+        self.data = code[0];
+
+        Ok(1)
+    }
+
+    fn encode_gpg(&self) -> Result<Vec<u8>,Box<dyn Error>> {
+        let mut retv :Vec<u8> = Vec::new();
+        retv.push(self.data);
+        Ok(retv)
+    }
+
+    fn print_gpg<U :Write>(&self,name :&str,tab :i32, iowriter :&mut U) -> Result<(),Box<dyn Error>> {
+        let s :String;
+        s = gpgobj_format_line(tab, &format!("{} GpgU8 {} 0x{:x}",name,self.data,self.data));
         iowriter.write(s.as_bytes())?;
         Ok(())
     }
