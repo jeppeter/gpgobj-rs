@@ -523,8 +523,116 @@ impl GpgOp for GpgSessionKey {
 	}
 }
 
+pub struct GpgPlainText {
+	pub matchid :u8,
+	pub extflag :bool,
+	pub mode :GpgU8,
+	pub namelen :GpgU8,
+	pub name :GpgData,
+	pub timestamp :GpgTime,
+	pub data :GpgData,
+}
+
+
+impl GpgOp for GpgPlainText {
+	fn init_gpg() -> Self {
+		GpgPlainText {
+			matchid : PKT_PLAINTEXT,
+			extflag : false,
+			mode :GpgU8::init_gpg(),
+			namelen :GpgU8::init_gpg(),
+			name : GpgData::init_gpg(),
+			timestamp : GpgTime::init_gpg(),
+			data : GpgData::init_gpg(),
+		}
+	}
+
+	fn decode_gpg(&mut self, code :&[u8]) -> Result<usize, Box<dyn Error>> {
+		let mut retv :usize = 0;
+		let endsize :usize;
+		let (_flag,_extflag,_hdrlen,_tlen) = decode_gpgobj_header(code)?;
+		gpgobj_log_trace!("_flag {} _extflag {} _hdrlen {} _tlen {}:0x{:x}", _flag, _extflag,_hdrlen,_tlen,_tlen);
+		if _flag != PKT_PLAINTEXT {
+			gpgobj_new_error!{GpgComplexError,"flag [0x{:x}] != PKT_PLAINTEXT [0x{:x}]", _flag,PKT_PLAINTEXT}
+		}
+
+		self.matchid = _flag;
+		self.extflag = _extflag;
+		retv += _hdrlen;
+		endsize = _hdrlen + _tlen;
+
+		retv += self.mode.decode_gpg(&code[retv..])?;
+		retv += self.namelen.decode_gpg(&code[retv..])?;
+		let clen :usize = retv + self.namelen.data as usize;
+		retv += self.name.decode_gpg(&code[retv..clen])?;
+		retv += self.timestamp.decode_gpg(&code[retv..])?;
+
+
+		if endsize > retv {
+			retv += self.data.decode_gpg(&code[retv..endsize])?;
+		}
+
+		if retv != endsize {
+			gpgobj_new_error!{GpgComplexError,"not complete {} size",endsize}
+		}
+		Ok(retv)
+	}
+
+	fn encode_gpg(&self) -> Result<Vec<u8>,Box<dyn Error>> {
+		let mut retv :Vec<u8>;
+		let mut encv :Vec<u8> = Vec::new();
+		let mut cv :Vec<u8>;
+
+		if self.namelen.data != self.name.data.len() as u8 {
+			gpgobj_new_error!{GpgComplexError,"not set namelen {} != name.data.len {}",self.namelen.data, self.name.data.len()}
+		}
+
+		cv = self.mode.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.namelen.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.name.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.timestamp.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		cv = self.data.encode_gpg()?;
+		encv.extend(cv.iter().copied());
+
+		retv = encode_gpgobj_header(self.matchid,self.extflag,encv.len())?;
+		retv.extend(encv.iter().copied());
+		Ok(retv)
+	}
+
+	fn print_gpg<U :Write>(&self,name :&str,tab :i32, iowriter :&mut U) -> Result<(),Box<dyn Error>> {
+		let s :String;
+
+		if self.namelen.data != self.name.data.len() as u8 {
+			gpgobj_new_error!{GpgComplexError,"not set namelen {} != name.data.len {}",self.namelen.data, self.name.data.len()}
+		}
+
+
+		s = gpgobj_format_line(tab , &format!("{} GpgPlainText", name));
+		iowriter.write(s.as_bytes())?;
+
+		self.mode.print_gpg("mode", tab + 1, iowriter)?;
+		self.namelen.print_gpg("namelen", tab + 1 ,iowriter)?;
+		self.name.print_gpg("name",tab + 1, iowriter)?;
+		self.data.print_gpg("data", tab + 1, iowriter)?;
+		Ok(())
+	}
+}
+
+
+pub struct GpgEncryptedMdc {
+
+}
 
 #[gpgobj_sequence()] 
 pub struct GpggpgFile {
 	pub seskey :GpgSessionKey,
+	pub plaintxt : GpgPlainText,
 }

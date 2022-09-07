@@ -23,6 +23,7 @@ pub const PKT_PUBLIC_KEY :u8 = 6;
 pub const PKT_USER_ID :u8 = 13;
 pub const PKT_SIGNATURE :u8 = 2;
 pub const PKT_SYMKEY_ENC :u8 = 3;
+pub const PKT_PLAINTEXT :u8 = 11;
 
 pub const DIGEST_ALGO_MD5 :u8 = 1;
 pub const DIGEST_ALGO_SHA1 :u8 = 2;
