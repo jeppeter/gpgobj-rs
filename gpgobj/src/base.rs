@@ -777,7 +777,7 @@ impl GpgOp for GpgData {
         let mut c :String = "".to_string();
         let mut i :usize=0;
         let mut lasti :usize = 0;
-        s = gpgobj_format_line(tab, &(format!("{}: GpgData", name)));
+        s = gpgobj_format_line(tab, &(format!("{}: GpgData [{}:0x{:x}]", name, self.data.len(),self.data.len())));
         while i < v8.len() {
             if (i %16) == 0 {
                 if i > 0 {

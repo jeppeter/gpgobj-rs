@@ -626,13 +626,16 @@ impl GpgOp for GpgPlainText {
 	}
 }
 
-
+#[gpgobj_sequence(matchidname=matchid,extflagname=extflag,matchid=PKT_ENCRYPTED_MDC)]
 pub struct GpgEncryptedMdc {
-
+	pub matchid :u8,
+	pub extflag :bool,
+	pub version :GpgVersion,
+	pub data :GpgData,
 }
 
 #[gpgobj_sequence()] 
 pub struct GpggpgFile {
 	pub seskey :GpgSessionKey,
-	pub plaintxt : GpgPlainText,
+	pub encdata :GpgEncryptedMdc,
 }
