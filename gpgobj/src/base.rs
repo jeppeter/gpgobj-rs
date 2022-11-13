@@ -409,13 +409,15 @@ pub struct GpgTime {
 
 impl GpgTime {
     pub fn time_to_str(&self) -> String {
-        let n : NaiveDateTime=  NaiveDateTime::from_timestamp(self.timeval as i64, 0);  
+        //let n : NaiveDateTime=  NaiveDateTime::from_timestamp(self.timeval as i64, 0);  
+        let n : NaiveDateTime=  NaiveDateTime::from_timestamp_opt(self.timeval as i64, 0).unwrap();  
         let dt :DateTime<Utc> = DateTime::from_utc(n,Utc);
         return format!("{}",dt.format("%Y-%m-%d %H:%M:%S"));
     }
 
     pub fn time_to_date(&self) -> DateTime<Utc> {
-        let n : NaiveDateTime=  NaiveDateTime::from_timestamp(self.timeval as i64, 0);  
+        //let n : NaiveDateTime=  NaiveDateTime::from_timestamp(self.timeval as i64, 0);  
+        let n : NaiveDateTime=  NaiveDateTime::from_timestamp_opt(self.timeval as i64, 0).unwrap();  
         let dt :DateTime<Utc> = DateTime::from_utc(n,Utc);
         return dt;      
     }
@@ -574,6 +576,7 @@ impl GpgTime {
         Ok(())
     }
 
+    #[allow(deprecated)]
     pub fn str_to_time(&mut self, s :&str) -> Result<(),Box<dyn Error>> {
         let (year,mon,mday,hour,min,sec) = self.get_time_val(s)?;
         self.check_data_valid(year,mon,mday,hour,min,sec)?;
